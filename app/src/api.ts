@@ -83,6 +83,8 @@ export type Application = {
 };
 export type AppEvent = { id: string; kind: string; note: string; at: string };
 
+export type Company = { id: string; name: string; kind: Source['kind']; board: string; job_count: number; last_checked_at: string | null };
+export type CompanyRequest = { id: string; query: string; status: 'pending' | 'added' | 'not_found'; company_name: string | null; created_at: string; resolved_at: string | null };
 export type Source = { id: string; kind: 'greenhouse' | 'lever' | 'ashby'; board: string; company: string; created_at: string };
 
 export type Today = {
@@ -166,6 +168,11 @@ export const api = {
   sources: () => request<Source[]>('GET', '/sources'),
   addSource: (kind: Source['kind'], board: string, company: string) => request<Source>('POST', '/sources', { kind, board, company }),
   deleteSource: (id: string) => request<{ deleted: boolean }>('DELETE', `/sources/${id}`),
+
+  companies: (q = '', limit = 50, offset = 0) =>
+    request<{ total: number; companies: Company[] }>('GET', `/companies?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`),
+  companyRequests: () => request<CompanyRequest[]>('GET', '/companies/requests'),
+  requestCompany: (query: string) => request<CompanyRequest>('POST', '/companies/requests', { query }),
 
   today: () => request<Today>('GET', '/today'),
   runNow: () => request<{ fetched: number; added: number; errors: string[] }>('POST', '/runs'),

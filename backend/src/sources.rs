@@ -140,6 +140,45 @@ pub fn passes_filters(job: &NewJob, target_roles: &[String], locations: &[String
     role_ok && loc_ok
 }
 
+pub const KINDS: [&str; 3] = ["greenhouse", "lever", "ashby"];
+
+/// Pulls the platform and board slug out of a Greenhouse, Lever or Ashby careers link.
+pub fn parse_careers_url(text: &str) -> Option<(String, String)> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"(?i)(greenhouse\.io|lever\.co|ashbyhq\.com)/(?:embed/job_board\?for=)?([A-Za-z0-9_.-]+)").unwrap());
+    let c = re.captures(text)?;
+    let host = c[1].to_lowercase();
+    let kind = if host.starts_with("greenhouse") { "greenhouse" } else if host.starts_with("lever") { "lever" } else { "ashby" };
+    Some((kind.to_string(), c[2].to_lowercase()))
+}
+
+/// Likely board slugs for a company name ("Acme Labs Pvt Ltd") or its own site ("acme.com/careers").
+pub fn slug_guesses(query: &str) -> Vec<String> {
+    static HOST: OnceLock<Regex> = OnceLock::new();
+    let host = HOST.get_or_init(|| Regex::new(r"^(?:https?://)?(?:www\.|careers\.|jobs\.)?([a-z0-9-]+)\.[a-z.]{2,}(?:/|$)").unwrap());
+    const SUFFIXES: [&str; 14] = ["inc", "ltd", "limited", "pvt", "private", "technologies", "technology", "labs", "corp", "corporation", "co", "software", "hq", "india"];
+
+    let q = query.trim().to_lowercase();
+    if !q.contains(' ') {
+        if let Some(c) = host.captures(&q) {
+            return vec![c[1].to_string()];
+        }
+    }
+    let words: Vec<String> = q
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(String::from)
+        .collect();
+    let core: Vec<&str> = words.iter().map(String::as_str).filter(|w| !SUFFIXES.contains(w)).collect();
+    let mut out: Vec<String> = Vec::new();
+    for g in [words.concat(), core.concat(), core.join("-"), core.first().map(|w| w.to_string()).unwrap_or_default()] {
+        if g.len() >= 2 && !out.contains(&g) {
+            out.push(g);
+        }
+    }
+    out
+}
+
 fn parse_rfc3339(s: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&Utc))
 }
@@ -210,6 +249,17 @@ mod tests {
         let jobs = parse_ashby(&body, "Acme");
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].location, "Mumbai (Remote)");
+    }
+
+    #[test]
+    fn careers_links_and_slugs() {
+        assert_eq!(parse_careers_url("https://boards.greenhouse.io/Razorpay/jobs/123"), Some(("greenhouse".into(), "razorpay".into())));
+        assert_eq!(parse_careers_url("jobs.lever.co/cred"), Some(("lever".into(), "cred".into())));
+        assert_eq!(parse_careers_url("https://jobs.ashbyhq.com/ramp?x=1"), Some(("ashby".into(), "ramp".into())));
+        assert_eq!(parse_careers_url("Acme"), None);
+        assert_eq!(slug_guesses("https://www.razorpay.com/careers"), vec!["razorpay"]);
+        assert_eq!(slug_guesses("Urban Company"), vec!["urbancompany", "urban-company", "urban"]);
+        assert_eq!(slug_guesses("Acme Labs Pvt Ltd"), vec!["acmelabspvtltd", "acme"]);
     }
 
     #[test]

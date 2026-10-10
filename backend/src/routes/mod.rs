@@ -1,5 +1,6 @@
 mod account;
 mod applications;
+mod companies;
 mod jobs;
 mod profile;
 
@@ -23,8 +24,10 @@ async fn internal_tick(State(st): State<AppState>, headers: HeaderMap) -> AppRes
     if given.len() != expected.len() || given.bytes().zip(expected.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) != 0 {
         return Err(AppError::Unauthorized);
     }
+    // The GitHub Action allows 300s; leave room for the morning runs after the refresh.
+    let catalog = scheduler::refresh_catalog(&st, std::time::Duration::from_secs(150)).await;
     let runs = scheduler::tick_once_with(&st, true).await?;
-    Ok(Json(json!({ "runs": runs })))
+    Ok(Json(json!({ "runs": runs, "catalog": catalog })))
 }
 
 pub fn router(state: AppState) -> Router {
@@ -38,6 +41,8 @@ pub fn router(state: AppState) -> Router {
         .route("/preferences", get(profile::get_preferences).put(profile::put_preferences))
         .route("/sources", get(profile::list_sources).post(profile::add_source))
         .route("/sources/:id", axum::routing::delete(profile::delete_source))
+        .route("/companies", get(companies::list))
+        .route("/companies/requests", get(companies::list_requests).post(companies::create_request))
         .route("/today", get(jobs::today))
         .route("/runs", post(jobs::run_now))
         .route("/jobs", get(jobs::list).post(jobs::create))

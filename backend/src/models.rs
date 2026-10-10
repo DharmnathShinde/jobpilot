@@ -133,6 +133,28 @@ pub struct JobSource {
     pub created_at: DateTime<Utc>,
 }
 
+/// A career page in the shared catalog every user follows.
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct Company {
+    pub id: Uuid,
+    pub name: String,
+    pub kind: String,
+    pub board: String,
+    pub job_count: i32,
+    pub last_checked_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct CompanyRequest {
+    pub id: Uuid,
+    pub query: String,
+    /// pending | added | not_found
+    pub status: String,
+    pub company_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct Job {
     pub id: Uuid,

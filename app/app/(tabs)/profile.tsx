@@ -32,8 +32,8 @@ export default function ProfileTab() {
   const router = useRouter();
   const { signOut } = useAuth();
   const { data, error, loading, reload } = useLoad(async () => {
-    const [profile, prefs, sources] = await Promise.all([api.profile(), api.preferences(), api.sources()]);
-    return { profile, prefs, sources };
+    const [profile, prefs, sources, catalog] = await Promise.all([api.profile(), api.preferences(), api.sources(), api.companies('', 1)]);
+    return { profile, prefs, followed: catalog.total + sources.length };
   });
 
   return (
@@ -65,7 +65,7 @@ export default function ProfileTab() {
               <Row icon="user" label="Master profile" onPress={() => router.push('/edit-profile')} />
               <Row icon="sliders" label="Job preferences" detail={`${data.prefs.target_roles.length} roles`} onPress={() => router.push('/edit-preferences')} />
               <Row icon="clock" label="Morning run" detail={data.prefs.schedule_enabled ? data.prefs.run_time.slice(0, 5) : 'Off'} onPress={() => router.push('/edit-preferences')} />
-              <Row icon="globe" label="Career pages I follow" detail={String(data.sources.length)} onPress={() => router.push('/sources')} />
+              <Row icon="globe" label="Career pages I follow" detail={String(data.followed)} onPress={() => router.push('/sources')} />
             </Card>
 
             <Card style={{ marginTop: space(4), paddingVertical: 0 }}>

@@ -1,5 +1,9 @@
-//! A discovery run: fetch from the user's sources, filter, score, store the new matches.
+//! A discovery run: take jobs from the shared catalog plus the user's own pages, filter, score,
+//! store the new matches.
 
+use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -81,6 +85,59 @@ pub async fn rescore_all(pool: &PgPool, user_id: Uuid) -> sqlx::Result<u64> {
     Ok(n)
 }
 
+/// Most catalog jobs that get scored in one run (after the title/location filter), newest first.
+const MAX_CATALOG_CANDIDATES: usize = 1500;
+
+type CatalogRow = (Uuid, String, String, String, String, String, String, Option<DateTime<Utc>>);
+
+/// Jobs from the shared catalog that pass the user's role and location filters.
+/// Returns (jobs looked at, candidates). Descriptions are loaded only for the candidates.
+async fn catalog_candidates(pool: &PgPool, prefs: &Preferences) -> sqlx::Result<(usize, Vec<NewJob>)> {
+    let rows: Vec<CatalogRow> = sqlx::query_as(
+        "SELECT j.company_id, c.kind, j.external_id, j.title, c.name, j.location, j.url, j.posted_at
+         FROM catalog_jobs j JOIN companies c ON c.id = j.company_id WHERE c.active",
+    )
+    .fetch_all(pool)
+    .await?;
+    let total = rows.len();
+
+    let mut picked: Vec<(Uuid, NewJob)> = rows
+        .into_iter()
+        .map(|(company_id, kind, external_id, title, company, location, url, posted_at)| {
+            (company_id, NewJob { source: kind, external_id, title, company, location, url, description: String::new(), posted_at })
+        })
+        .filter(|(_, j)| sources::passes_filters(j, &prefs.target_roles, &prefs.locations, prefs.remote_ok))
+        .collect();
+    picked.sort_by(|a, b| b.1.posted_at.cmp(&a.1.posted_at));
+    picked.truncate(MAX_CATALOG_CANDIDATES);
+    if picked.is_empty() {
+        return Ok((total, Vec::new()));
+    }
+
+    let company_ids: Vec<Uuid> = picked.iter().map(|(c, _)| *c).collect();
+    let external_ids: Vec<&str> = picked.iter().map(|(_, j)| j.external_id.as_str()).collect();
+    let descriptions: HashMap<(Uuid, String), String> = sqlx::query_as::<_, (Uuid, String, String)>(
+        "SELECT company_id, external_id, description FROM catalog_jobs
+         WHERE (company_id, external_id) IN (SELECT * FROM UNNEST($1::uuid[], $2::text[]))",
+    )
+    .bind(&company_ids)
+    .bind(&external_ids)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|(c, e, d)| ((c, e), d))
+    .collect();
+
+    let jobs = picked
+        .into_iter()
+        .map(|(c, mut j)| {
+            j.description = descriptions.get(&(c, j.external_id.clone())).cloned().unwrap_or_default();
+            j
+        })
+        .collect();
+    Ok((total, jobs))
+}
+
 #[derive(Debug, Serialize)]
 pub struct RunSummary {
     pub run_id: Uuid,
@@ -96,12 +153,19 @@ pub async fn run_for_user(state: &AppState, user_id: Uuid, trigger: &str) -> any
 
     let profile = load_profile(pool, user_id).await?;
     let prefs = load_preferences(pool, user_id).await?;
-    let src: Vec<(String, String, String)> =
-        sqlx::query_as("SELECT kind, board, company FROM job_sources WHERE user_id = $1").bind(user_id).fetch_all(pool).await?;
 
-    let mut fetched = 0i32;
-    let mut candidates = Vec::new();
+    let (catalog_fetched, mut candidates) = catalog_candidates(pool, &prefs).await?;
+    let mut fetched = catalog_fetched as i32;
     let mut errors = Vec::new();
+
+    // Pages the user added just for themselves are fetched live (unless the catalog already covers them).
+    let src: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT kind, board, company FROM job_sources s WHERE user_id = $1
+           AND NOT EXISTS (SELECT 1 FROM companies c WHERE c.active AND c.kind = s.kind AND c.board = s.board)",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
     for (kind, board, company) in &src {
         match sources::fetch(&state.http, kind, board, company).await {
             Ok(jobs) => {

@@ -1,5 +1,5 @@
-//! Per-user morning runs. Every minute, find users whose local run time has passed today
-//! and who haven't run yet, then run discovery for each.
+//! Per-user morning runs. Every minute, refresh stale catalog boards, then find users whose
+//! local run time has passed today and who haven't run yet, and run discovery for each.
 
 use std::time::Duration;
 
@@ -7,7 +7,7 @@ use chrono::{Datelike, NaiveDate, NaiveTime, Utc};
 use chrono_tz::Tz;
 use uuid::Uuid;
 
-use crate::discovery;
+use crate::{catalog, discovery};
 use crate::state::AppState;
 
 pub fn spawn(state: AppState) {
@@ -44,8 +44,7 @@ pub async fn tick_once_with(state: &AppState, wait: bool) -> anyhow::Result<usiz
     let rows: Vec<(Uuid, String, NaiveTime, Vec<i32>, Option<NaiveDate>)> = sqlx::query_as(
         "SELECT p.user_id, p.timezone, p.run_time, p.active_days, p.last_run_on
          FROM preferences p JOIN profiles pr ON pr.user_id = p.user_id
-         WHERE p.schedule_enabled AND pr.confirmed
-           AND EXISTS (SELECT 1 FROM job_sources s WHERE s.user_id = p.user_id)",
+         WHERE p.schedule_enabled AND pr.confirmed",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -81,7 +80,23 @@ pub async fn tick_once_with(state: &AppState, wait: bool) -> anyhow::Result<usiz
     Ok(started)
 }
 
+/// Catalog refresh first, so morning runs score fresh roles. A refresh that runs out of
+/// `budget` carries on at the next tick.
+pub async fn refresh_catalog(state: &AppState, budget: Duration) -> Option<catalog::TickSummary> {
+    if !state.config.catalog_refresh {
+        return None;
+    }
+    match catalog::tick(state, budget).await {
+        Ok(s) => Some(s),
+        Err(e) => {
+            tracing::error!(error = %e, "catalog refresh failed");
+            None
+        }
+    }
+}
+
 pub async fn tick_once(state: &AppState) -> anyhow::Result<()> {
+    refresh_catalog(state, Duration::from_secs(45)).await;
     tick_once_with(state, false).await.map(|_| ())
 }
 

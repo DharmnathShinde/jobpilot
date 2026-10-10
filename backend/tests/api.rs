@@ -21,6 +21,7 @@ async fn app() -> Option<Router> {
         anthropic_api_key: None,
         llm_model: "unused".into(),
         scheduler_enabled: false,
+        catalog_refresh: false,
         cron_secret: Some("test-cron-secret-123456".into()),
         allow_signups: true,
     };
@@ -211,4 +212,37 @@ async fn cron_tick_requires_secret() {
     let req = Request::builder().method("POST").uri("/internal/tick").header("x-cron-secret", "test-cron-secret-123456").body(Body::empty()).unwrap();
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn company_catalog_and_requests() {
+    let Some(app) = app().await else { return };
+    let t = register(&app).await;
+    let t = Some(t.as_str());
+
+    // Seeded on startup: every user follows 500+ career pages without adding any.
+    let (s, v) = call(&app, "GET", "/companies?limit=5", t, None).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(v["total"].as_i64().unwrap() >= 500, "{v}");
+    assert_eq!(v["companies"].as_array().unwrap().len(), 5);
+    let (_, v) = call(&app, "GET", "/companies?q=strip", t, None).await;
+    assert!(v["companies"].as_array().unwrap().iter().any(|c| c["board"] == "stripe"), "{v}");
+
+    // Already in the catalog → added right away.
+    let (s, r) = call(&app, "POST", "/companies/requests", t, Some(json!({ "query": "https://boards.greenhouse.io/stripe" }))).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["status"], "added");
+    assert_eq!(r["company_name"], "Stripe");
+
+    // Unknown → queued for the cron; asking twice is a conflict.
+    let (_, r) = call(&app, "POST", "/companies/requests", t, Some(json!({ "query": "Zqxv Imaginary Widgets" }))).await;
+    assert_eq!(r["status"], "pending");
+    let (s, _) = call(&app, "POST", "/companies/requests", t, Some(json!({ "query": "zqxv imaginary widgets" }))).await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, _) = call(&app, "POST", "/companies/requests", t, Some(json!({ "query": " " }))).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let (_, list) = call(&app, "GET", "/companies/requests", t, None).await;
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    call(&app, "DELETE", "/me", t, None).await;
 }

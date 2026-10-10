@@ -27,7 +27,7 @@ export default function Today() {
     setRunMsg(null);
     try {
       const r = await api.runNow();
-      setRunMsg(r.errors.length ? `Added ${r.added}. ${r.errors.length} source(s) failed: ${r.errors[0]}` : `Checked ${r.fetched} jobs, added ${r.added} new matches.`);
+      setRunMsg(r.errors.length ? `Added ${r.added}. ${r.errors.length} of your own page(s) failed: ${r.errors[0]}` : `Checked ${r.fetched} jobs, added ${r.added} new matches.`);
       await reload();
     } catch (e) {
       setRunMsg(e instanceof Error ? e.message : 'Run failed');
@@ -101,11 +101,11 @@ export default function Today() {
               <Empty
                 icon="sunrise"
                 title="Nothing new yet"
-                body="Follow a few company career pages, or add a job you saw on LinkedIn or Naukri."
+                body="We check 500+ company career pages every morning. Run it now, or add a job you saw on LinkedIn or Naukri."
                 action={
                   <View style={{ gap: 10 }}>
                     <Button label="Find jobs now" onPress={runNow} loading={running} />
-                    <Button label="Follow career pages" variant="soft" onPress={() => router.push('/sources')} />
+                    <Button label="Add more companies" variant="soft" onPress={() => router.push('/sources')} />
                   </View>
                 }
               />

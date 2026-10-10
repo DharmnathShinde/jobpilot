@@ -20,7 +20,7 @@ export default function OnboardingPreferences() {
           saveLabel="Start my job search"
           onSaved={async () => {
             await refresh();
-            router.replace('/sources?first=1');
+            router.replace('/today');
           }}
         />
       </ScrollView>

@@ -1,0 +1,7 @@
+backend/target/
+backend/.env
+node_modules/
+.expo/
+dist/
+*.log
+.DS_Store

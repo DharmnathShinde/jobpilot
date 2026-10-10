@@ -1,0 +1,42 @@
+# Render Blueprint: New → Blueprint → pick this repo.
+# The database is NOT here (Render's free Postgres is deleted after 30 days); use Neon's free plan.
+services:
+  - type: web
+    name: jobpilot-api
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Neon connection string
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        sync: false # same value as the GitHub secret CRON_SECRET
+      - key: ALLOW_SIGNUPS
+        value: "true" # set to "false" after you create your account
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional
+      - key: LLM_MODEL
+        value: claude-haiku-5-5
+
+  # Optional: the app as a website you can "Add to Home Screen" on any phone (works on iPhone too).
+  - type: web
+    name: jobpilot-web
+    runtime: static
+    rootDir: app
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://jobpilot-api.onrender.com # change if Render gives your API a different URL

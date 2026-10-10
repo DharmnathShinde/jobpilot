@@ -1,0 +1,31 @@
+# Render's free plan sleeps after 15 minutes idle, so the in-app scheduler can't fire on its own.
+# This wakes the server every hour and runs anyone whose morning time has passed.
+# Each user still runs at most once a day, so extra calls are harmless.
+#
+# Setup (repo → Settings → Secrets and variables → Actions):
+#   API_URL      e.g. https://jobpilot-api.onrender.com
+#   CRON_SECRET  same long random string you set on Render
+name: Morning run
+
+on:
+  schedule:
+    - cron: "0 * * * *" # hourly (UTC); GitHub may delay scheduled runs by a few minutes
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wake the API
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 60 "${{ secrets.API_URL }}/health"; then exit 0; fi
+            echo "waiting for cold start ($i)"; sleep 20
+          done
+          exit 1
+      - name: Run due morning jobs
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.API_URL }}/internal/tick"

@@ -7,7 +7,7 @@ Total cost: ₹0. Takes about 30 minutes the first time.
 | Database | [Neon](https://neon.com) | 1 GB storage, sleeps after 5 min idle, no card needed |
 | API (Rust) | [Render](https://render.com) web service | Sleeps after 15 min idle; ~1 min to wake; 750 hours/month |
 | Morning run | GitHub Actions (this repo) | Wakes the API hourly and runs your morning job |
-| Phone app | Expo EAS Build → Android APK | 15 Android builds/month |
+| Phone app | GitHub Actions (this repo) | APK on the `apk-latest` release; rebuilds on every push to `main` |
 | Web app (optional, iPhone) | Render static site | Free |
 
 ## 1. Put the code on GitHub
@@ -53,16 +53,16 @@ and does your job search when your chosen time (default 7:00 IST, weekdays) has 
 
 ## 5. Phone app: Android APK
 
-```bash
-npm install -g eas-cli
-cd app
-eas login                 # free Expo account
-eas build:configure       # accept defaults; links the project
-eas build -p android --profile apk
-```
+Every push to `main` builds an APK. No Expo account.
 
-When the build finishes (10–20 min on the free queue), open the link on your phone, download the APK
-and install it (allow "install unknown apps" for your browser when asked).
+1. On GitHub, open **Actions → Android APK** and wait until the run is green (about 15–20 minutes the first time).
+2. Open **Releases → apk-latest** (`https://github.com/<you>/jobpilot/releases/tag/apk-latest`).
+3. On your phone, download `jobpilot.apk`.
+4. Allow "install unknown apps" for your browser, then open the file.
+
+You can also download the same file from the workflow run, under **Artifacts**. The app talks to
+`https://jobpilot-api.onrender.com`. If Render gave the API a different URL, change
+`EXPO_PUBLIC_API_URL` in `.github/workflows/android-apk.yml` and push again.
 
 **iPhone:** installing your own build needs a paid Apple developer account. Use the web app instead:
 open the `jobpilot-web` Render URL in Safari → Share → **Add to Home Screen**.
@@ -78,6 +78,6 @@ Nobody else can now create an account on your server.
 
 - **First tap of the day is slow** (~1 minute) while Render wakes the API. After that it's fast.
 - **Data is safe while asleep**: everything lives in Neon, not on Render.
-- **Updating**: push to `main` and Render redeploys the API. Rebuild the APK only when app code changes.
+- **Updating**: push to `main`. Render redeploys the API, and GitHub builds a new APK on the `apk-latest` release.
 - **Backups**: Neon keeps a short restore history on the free plan; for your own copy run
   `pg_dump "<neon url>" > backup.sql` now and then.

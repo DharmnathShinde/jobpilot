@@ -1,0 +1,96 @@
+# Builds an installable Android APK on every push to main and publishes
+# jobpilot.apk on the apk-latest GitHub Release.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_API_URL: https://jobpilot-api.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Restore signing key
+        id: keystore
+        uses: actions/cache@v4
+        with:
+          path: android-signing/debug.keystore
+          key: jobpilot-android-debug-keystore-v1
+
+      - name: Create signing key
+        if: steps.keystore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p android-signing
+          keytool -genkeypair -v \
+            -keystore android-signing/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=JobPilot, OU=Personal, O=JobPilot, L=Unknown, ST=Unknown, C=US"
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Generate Android project
+        working-directory: app
+        run: npx expo prebuild --platform android --non-interactive --no-install
+
+      - name: Use the saved signing key
+        run: cp android-signing/debug.keystore app/android/app/debug.keystore
+
+      - name: Build release APK
+        working-directory: app/android
+        run: chmod +x ./gradlew && ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobpilot-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish APK on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=$(find app/android/app/build/outputs/apk/release -name '*.apk' -print -quit)
+          cp "$apk" jobpilot.apk
+          notes="Android build from ${GITHUB_SHA}."
+          if gh release view apk-latest >/dev/null 2>&1; then
+            gh release upload apk-latest jobpilot.apk --clobber
+            gh release edit apk-latest --notes "$notes"
+          else
+            gh release create apk-latest jobpilot.apk \
+              --title "Android APK" \
+              --notes "$notes" \
+              --latest=false
+          fi

@@ -4,7 +4,7 @@
     "apk": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://jobpilot-api.onrender.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://jobpilot-api-jiea.onrender.com" }
     }
   }
 }

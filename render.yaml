@@ -39,4 +39,4 @@ services:
         destination: /index.html
     envVars:
       - key: EXPO_PUBLIC_API_URL
-        value: https://jobpilot-api.onrender.com # change if Render gives your API a different URL
+        value: https://jobpilot-api-jiea.onrender.com

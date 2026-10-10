@@ -61,7 +61,7 @@ Every push to `main` builds an APK. No Expo account.
 4. Allow "install unknown apps" for your browser, then open the file.
 
 You can also download the same file from the workflow run, under **Artifacts**. The app talks to
-`https://jobpilot-api.onrender.com`. If Render gave the API a different URL, change
+`https://jobpilot-api-jiea.onrender.com`. If Render gave the API a different URL, change
 `EXPO_PUBLIC_API_URL` in `.github/workflows/android-apk.yml` and push again.
 
 **iPhone:** installing your own build needs a paid Apple developer account. Use the web app instead:

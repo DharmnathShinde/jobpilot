@@ -3,7 +3,7 @@
 # Each user still runs at most once a day, so extra calls are harmless.
 #
 # Setup (repo → Settings → Secrets and variables → Actions):
-#   API_URL      e.g. https://jobpilot-api.onrender.com
+#   API_URL      e.g. https://jobpilot-api-jiea.onrender.com
 #   CRON_SECRET  same long random string you set on Render
 name: Morning run
 

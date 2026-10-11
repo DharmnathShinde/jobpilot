@@ -35,6 +35,10 @@ The API creates all tables itself on first start.
    - `DATABASE_URL` → the Neon string
    - `CRON_SECRET` → the secret from step 1
    - `ANTHROPIC_API_KEY` → optional, for smarter CV reading (leave blank to skip)
+   - Optional job volume (free tiers):
+     - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` → from [developer.adzuna.com](https://developer.adzuna.com/)
+     - `ADZUNA_COUNTRY` → `ae` for UAE (or `in`, `gb`, …)
+     - `JSEARCH_API_KEY` → RapidAPI key for [JSearch](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch)
 4. Wait for the first deploy (Rust build takes ~10 minutes the first time).
 5. Open `https://<your-api>.onrender.com/health`. It should say `{"ok":true}`.
 
@@ -73,6 +77,12 @@ open the `jobpilot-web` Render URL in Safari → Share → **Add to Home Screen*
 2. On Render → `jobpilot-api` → Environment, set `ALLOW_SIGNUPS` to `false`. Render redeploys.
 
 Nobody else can now create an account on your server.
+
+## More matching jobs (optional)
+
+1. Set Adzuna / JSearch keys on Render (step 3).
+2. In the app → Preferences: locations like `Dubai, UAE`, raise **Max jobs per run** (up to 1000), set your target roles.
+3. Trigger **Actions → Morning run** (or wait for the hourly tick). New ATS boards from the seed are inserted on API restart.
 
 ## Good to know
 

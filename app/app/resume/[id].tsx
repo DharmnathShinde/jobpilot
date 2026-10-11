@@ -76,7 +76,7 @@ export default function ResumeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: space(6), paddingBottom: 130 }}>
+      <ScrollView contentContainerStyle={{ padding: space(6), paddingBottom: 160 }}>
         <Header back title="Tailored resume" subtitle={`For ${j.company || 'this role'} · ${j.title}`} right={<IconButton icon="download" label="Download PDF" onPress={share} />} />
         <Preview p={r.content} highlight={j.matched_skills} />
 
@@ -112,9 +112,12 @@ export default function ResumeScreen() {
         {shareError && <ErrorBanner message={shareError} />}
       </ScrollView>
 
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, padding: space(4), paddingBottom: space(8), flexDirection: 'row', gap: 10 }}>
-        <Button label="Edit profile" variant="secondary" onPress={() => router.push('/edit-profile')} style={{ width: 120 }} />
-        <Button label="Use this resume" onPress={() => router.push(`/apply/${j.id}?resume=${r.id}`)} loading={sharing} style={{ flex: 1 }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, padding: space(4), paddingBottom: space(8), gap: 10 }}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Button label="Download PDF" variant="secondary" onPress={share} loading={sharing} style={{ flex: 1 }} />
+          <Button label="Use this resume" onPress={() => router.push(`/apply/${j.id}?resume=${r.id}`)} style={{ flex: 1 }} />
+        </View>
+        <Button label="Edit profile" variant="ghost" onPress={() => router.push('/edit-profile')} />
       </View>
     </SafeAreaView>
   );

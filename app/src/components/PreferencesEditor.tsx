@@ -49,7 +49,7 @@ export function PreferencesEditor({ onSaved, saveLabel }: { onSaved: () => void;
     <View>
       {error && <ErrorBanner message={error} />}
       <Field label="Target roles" value={roles} onChangeText={setRoles} placeholder="React Native Engineer, Mobile Engineer" hint="Comma-separated. Only jobs with these words in the title are collected." />
-      <Field label="Locations" value={locs} onChangeText={setLocs} placeholder="Bengaluru, Pune" />
+      <Field label="Locations" value={locs} onChangeText={setLocs} placeholder="Dubai, UAE, Bengaluru" hint="Dubai also matches UAE / Abu Dhabi / Sharjah postings." />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space(4) }}>
         <Text style={type.body}>Include remote roles</Text>
         <Switch value={p.remote_ok} onValueChange={(v) => set('remote_ok', v)} trackColor={{ true: colors.primary }} />
@@ -62,7 +62,20 @@ export function PreferencesEditor({ onSaved, saveLabel }: { onSaved: () => void;
           <Field label="Notice (days)" value={p.notice_days?.toString() ?? ''} keyboardType="number-pad" onChangeText={(v) => set('notice_days', v ? parseInt(v, 10) || null : null)} />
         </View>
       </View>
-      <Field label="Minimum match score" value={String(p.min_score)} keyboardType="number-pad" onChangeText={(v) => set('min_score', Math.min(100, parseInt(v, 10) || 0))} hint="Jobs below this score stay out of your queue." />
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Field label="Minimum match score" value={String(p.min_score)} keyboardType="number-pad" onChangeText={(v) => set('min_score', Math.min(100, parseInt(v, 10) || 0))} hint="Jobs below this score stay out of your queue." />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field
+            label="Max jobs per run"
+            value={String(p.max_jobs_per_run)}
+            keyboardType="number-pad"
+            onChangeText={(v) => set('max_jobs_per_run', Math.min(1000, Math.max(1, parseInt(v, 10) || 1)))}
+            hint="How many new matches to keep each morning (up to 1000)."
+          />
+        </View>
+      </View>
 
       <Text style={[type.section, { marginTop: space(2), marginBottom: space(3) }]}>Morning run</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space(4) }}>

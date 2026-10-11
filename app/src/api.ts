@@ -59,7 +59,12 @@ export type Job = {
   explanation: string;
   queue_status: 'new' | 'saved' | 'skipped' | 'applied';
   created_at: string;
+  hr_email?: string | null;
+  hr_email_source?: 'jd' | 'manual' | null;
+  outreach_status?: 'none' | 'drafted' | 'sent';
 };
+
+export type OutreachDraft = { to: string; subject: string; body: string };
 
 export type ResumeChange = { kind: 'reordered' | 'wording' | 'not_added'; text: string };
 export type TailoredResume = { id: string; job_id: string; content: Profile; changes: ResumeChange[]; keyword_coverage: number; created_at: string };
@@ -176,11 +181,16 @@ export const api = {
 
   today: () => request<Today>('GET', '/today'),
   runNow: () => request<{ fetched: number; added: number; errors: string[] }>('POST', '/runs'),
-  jobs: (status: 'new' | 'saved' | 'skipped' | 'applied' = 'new') => request<Job[]>('GET', `/jobs?status=${status}`),
+  jobs: (status: 'new' | 'saved' | 'skipped' | 'applied' = 'new', limit = 500) =>
+    request<Job[]>('GET', `/jobs?status=${status}&limit=${limit}`),
   job: (id: string) => request<Job>('GET', `/jobs/${id}`),
   addJob: (j: { title: string; company: string; location: string; url: string; description: string; via?: 'share' | 'manual' }) =>
     request<Job>('POST', '/jobs', j),
   setJobStatus: (id: string, status: 'new' | 'saved' | 'skipped') => request<Job>('POST', `/jobs/${id}/status`, { status }),
+  setHrEmail: (id: string, email: string | null) => request<Job>('PATCH', `/jobs/${id}/hr-email`, { email }),
+  outreachDraft: (id: string) => request<OutreachDraft>('POST', `/jobs/${id}/outreach-draft`),
+  setOutreachStatus: (id: string, status: 'none' | 'drafted' | 'sent') =>
+    request<Job>('POST', `/jobs/${id}/outreach-status`, { status }),
   tailor: (id: string) => request<TailoredResume>('POST', `/jobs/${id}/tailor`),
   resume: (id: string) => request<TailoredResume>('GET', `/resumes/${id}`),
   resumeHtml: (id: string) => request<string>('GET', `/resumes/${id}/html`),

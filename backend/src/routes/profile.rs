@@ -128,7 +128,7 @@ pub async fn put_preferences(State(st): State<AppState>, AuthUser(uid): AuthUser
     .bind(p.run_time)
     .bind(&p.timezone)
     .bind(&p.active_days)
-    .bind(p.max_jobs_per_run.clamp(1, 100))
+    .bind(p.max_jobs_per_run.clamp(1, 1000))
     .bind(p.schedule_enabled)
     .fetch_one(&st.pool)
     .await?;

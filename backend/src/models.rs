@@ -121,7 +121,7 @@ fn default_days() -> Vec<i32> {
     vec![1, 2, 3, 4, 5]
 }
 fn default_max_jobs() -> i32 {
-    20
+    200
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -175,6 +175,9 @@ pub struct Job {
     pub explanation: String,
     pub queue_status: String,
     pub created_at: DateTime<Utc>,
+    pub hr_email: Option<String>,
+    pub hr_email_source: Option<String>,
+    pub outreach_status: String,
 }
 
 /// A job as fetched from a source, before it is stored and scored.

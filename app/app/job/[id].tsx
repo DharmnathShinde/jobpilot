@@ -1,15 +1,23 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Linking, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '../../src/api';
 import { timeAgo } from '../../src/components/JobCard';
-import { Button, Card, Chip, ErrorBanner, Header, Loading, Logo, ScoreBadge } from '../../src/components/ui';
+import { Button, Card, Chip, ErrorBanner, Field, Header, Loading, Logo, ScoreBadge } from '../../src/components/ui';
 import { colors, space, type } from '../../src/theme';
 import { useLoad } from '../../src/useLoad';
 
-const sourceName: Record<string, string> = { share: 'shared by you', manual: 'added by you', greenhouse: 'career page', lever: 'career page', ashby: 'career page' };
+const sourceName: Record<string, string> = {
+  share: 'shared by you',
+  manual: 'added by you',
+  greenhouse: 'career page',
+  lever: 'career page',
+  ashby: 'career page',
+  adzuna: 'Adzuna',
+  jsearch: 'job search',
+};
 
 function Fact({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
@@ -27,6 +35,11 @@ export default function JobDetail() {
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [hrEmail, setHrEmail] = useState('');
+
+  useEffect(() => {
+    setHrEmail(job?.hr_email ?? '');
+  }, [job?.hr_email, job?.id]);
 
   const setStatus = async (status: 'saved' | 'skipped' | 'new') => {
     setBusy(status);
@@ -53,11 +66,48 @@ export default function JobDetail() {
     }
   };
 
+  const saveHr = async () => {
+    setBusy('hr');
+    setActionError(null);
+    try {
+      setData(await api.setHrEmail(id, hrEmail.trim() || null));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not save email');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const emailHr = async () => {
+    setBusy('email');
+    setActionError(null);
+    try {
+      if (hrEmail.trim() && hrEmail.trim().toLowerCase() !== (job?.hr_email ?? '').toLowerCase()) {
+        setData(await api.setHrEmail(id, hrEmail.trim()));
+      }
+      const draft = await api.outreachDraft(id);
+      const url = `mailto:${encodeURIComponent(draft.to)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+      const can = await Linking.canOpenURL(url);
+      if (!can) throw new Error('No mail app available on this device');
+      await Linking.openURL(url);
+      setData(await api.setOutreachStatus(id, 'sent'));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not open email');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (loading && !job) return <SafeAreaView style={{ flex: 1 }}><Loading /></SafeAreaView>;
   if (!job) return <SafeAreaView style={{ flex: 1, padding: space(6) }}><Header back title="Job" /><ErrorBanner message={error ?? 'Not found'} /></SafeAreaView>;
 
   const years = job.min_years != null ? (job.max_years != null ? `${job.min_years}–${job.max_years} years` : `${job.min_years}+ years`) : 'Not stated';
   const strength = job.score >= 80 ? 'Strong match' : job.score >= 60 ? 'Good match' : 'Partial match';
+  const hrHint = job.hr_email_source === 'jd'
+    ? 'Found in the job description'
+    : job.hr_email_source === 'manual'
+      ? 'Entered by you'
+      : 'Not found in the posting — paste if you have it';
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -102,6 +152,21 @@ export default function JobDetail() {
           <Fact label="Experience asked" value={years} />
           <Fact label="Skills matched" value={job.required_skills.length ? `${job.matched_skills.length} of ${job.required_skills.length}` : '—'} tone={colors.success} />
         </View>
+
+        <Card style={{ marginTop: space(4) }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={type.section}>HR email</Text>
+            {(job.outreach_status ?? 'none') !== 'none' ? (
+              <Chip label={job.outreach_status === 'sent' ? 'Emailed' : 'Draft ready'} tone="good" />
+            ) : null}
+          </View>
+          <Text style={[type.caption, { marginTop: 4, marginBottom: space(3) }]}>{hrHint}</Text>
+          <Field label="Recruiter / HR email" value={hrEmail} onChangeText={setHrEmail} autoCapitalize="none" keyboardType="email-address" placeholder="talent@company.com" />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Button label="Save" variant="secondary" onPress={saveHr} loading={busy === 'hr'} style={{ width: 100 }} />
+            <Button label="Email HR" onPress={emailHr} loading={busy === 'email'} disabled={!hrEmail.trim()} style={{ flex: 1 }} />
+          </View>
+        </Card>
 
         <Text style={[type.section, { marginTop: space(6), marginBottom: space(2) }]}>About the role</Text>
         <Text style={[type.body, { color: '#475569' }]} numberOfLines={expanded ? undefined : 8}>{job.description}</Text>

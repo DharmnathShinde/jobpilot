@@ -8,6 +8,8 @@ use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::aggregators;
+use crate::contacts;
 use crate::matching;
 use crate::models::{Job, NewJob, Preferences, Profile};
 use crate::sources;
@@ -21,6 +23,10 @@ pub async fn load_preferences(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Pref
     sqlx::query_as::<_, Preferences>("SELECT * FROM preferences WHERE user_id = $1").bind(user_id).fetch_one(pool).await
 }
 
+const JOB_RETURNING: &str = "id, source, external_id, title, company, location, url, description, posted_at, required_skills,
+                   min_years, max_years, score, matched_skills, missing_skills, explanation, queue_status, created_at,
+                   hr_email, hr_email_source, outreach_status";
+
 /// Scores and stores one job. Returns None if this job was already stored for the user.
 pub async fn store_job(
     pool: &PgPool,
@@ -30,14 +36,16 @@ pub async fn store_job(
     prefs: &Preferences,
 ) -> sqlx::Result<Option<Job>> {
     let m = matching::score(profile, &job.title, &job.description, &prefs.target_roles);
-    sqlx::query_as::<_, Job>(
+    let hr = contacts::extract_hr_email(&job.description);
+    let hr_source = hr.as_ref().map(|_| "jd".to_string());
+    sqlx::query_as::<_, Job>(&format!(
         "INSERT INTO jobs (id, user_id, source, external_id, title, company, location, url, description, posted_at,
-                           required_skills, min_years, max_years, score, matched_skills, missing_skills, explanation)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                           required_skills, min_years, max_years, score, matched_skills, missing_skills, explanation,
+                           hr_email, hr_email_source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
          ON CONFLICT (user_id, source, external_id) DO NOTHING
-         RETURNING id, source, external_id, title, company, location, url, description, posted_at, required_skills,
-                   min_years, max_years, score, matched_skills, missing_skills, explanation, queue_status, created_at",
-    )
+         RETURNING {JOB_RETURNING}"
+    ))
     .bind(Uuid::new_v4())
     .bind(user_id)
     .bind(&job.source)
@@ -55,6 +63,8 @@ pub async fn store_job(
     .bind(&m.matched_skills)
     .bind(&m.missing_skills)
     .bind(&m.explanation)
+    .bind(&hr)
+    .bind(&hr_source)
     .fetch_optional(pool)
     .await
 }
@@ -178,6 +188,15 @@ pub async fn run_for_user(state: &AppState, user_id: Uuid, trigger: &str) -> any
             }
         }
     }
+
+    let (agg_jobs, agg_errors) = aggregators::fetch_all(&state.http, &state.config, &prefs).await;
+    fetched += agg_jobs.len() as i32;
+    errors.extend(agg_errors);
+    candidates.extend(
+        agg_jobs
+            .into_iter()
+            .filter(|j| sources::passes_filters(j, &prefs.target_roles, &prefs.locations, prefs.remote_ok)),
+    );
 
     // Best matches first, so the per-run cap keeps the strongest jobs.
     let mut scored: Vec<(i32, NewJob)> = candidates

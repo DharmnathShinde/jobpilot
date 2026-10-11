@@ -1,6 +1,8 @@
+pub mod aggregators;
 pub mod auth;
 pub mod catalog;
 pub mod config;
+pub mod contacts;
 pub mod cv;
 pub mod discovery;
 pub mod error;

@@ -25,6 +25,14 @@ services:
         sync: false # optional
       - key: LLM_MODEL
         value: claude-haiku-5-5
+      - key: ADZUNA_APP_ID
+        sync: false # optional free Adzuna API
+      - key: ADZUNA_APP_KEY
+        sync: false
+      - key: ADZUNA_COUNTRY
+        value: ae
+      - key: JSEARCH_API_KEY
+        sync: false # optional RapidAPI JSearch key
 
   # Optional: the app as a website you can "Add to Home Screen" on any phone (works on iPhone too).
   - type: web

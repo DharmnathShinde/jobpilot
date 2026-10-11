@@ -122,6 +122,31 @@ pub fn parse_ashby(body: &Value, company: &str) -> Vec<NewJob> {
         .unwrap_or_default()
 }
 
+/// Expands a user location preference into related place strings (Dubai ↔ UAE, etc.).
+fn location_synonyms(pref: &str) -> Vec<String> {
+    let p = pref.to_lowercase();
+    let mut out = vec![p.clone()];
+    let uae = ["dubai", "uae", "united arab emirates", "abu dhabi", "sharjah", "ajman", "ras al khaimah", "fujairah", "middle east", "gcc"];
+    if uae.iter().any(|s| p.contains(s)) {
+        out.extend(uae.iter().map(|s| (*s).to_string()));
+    }
+    let india = ["bengaluru", "bangalore", "mumbai", "pune", "hyderabad", "delhi", "noida", "gurgaon", "gurugram", "chennai", "india"];
+    if india.iter().any(|s| p.contains(s)) {
+        if p.contains("bengaluru") || p.contains("bangalore") {
+            out.push("bengaluru".into());
+            out.push("bangalore".into());
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn location_matches(job_loc: &str, pref: &str) -> bool {
+    let loc = job_loc.to_lowercase();
+    location_synonyms(pref).iter().any(|s| !s.is_empty() && loc.contains(s.as_str()))
+}
+
 /// Keeps jobs whose title matches a target role and whose location fits the preferences.
 pub fn passes_filters(job: &NewJob, target_roles: &[String], locations: &[String], remote_ok: bool) -> bool {
     let title = job.title.to_lowercase();
@@ -135,8 +160,8 @@ pub fn passes_filters(job: &NewJob, target_roles: &[String], locations: &[String
     let is_remote = loc.contains("remote") || loc.contains("anywhere");
     let loc_ok = locations.is_empty()
         || (remote_ok && is_remote)
-        || locations.iter().any(|l| loc.contains(&l.to_lowercase()))
-        || (loc.is_empty());
+        || locations.iter().any(|l| location_matches(&loc, l))
+        || loc.is_empty();
     role_ok && loc_ok
 }
 
@@ -278,8 +303,11 @@ mod tests {
         assert!(passes_filters(&job, &roles, &["Bengaluru".into()], true));
         assert!(!passes_filters(&job, &roles, &["Pune".into()], true));
         assert!(!passes_filters(&job, &["Data Scientist".into()], &[], true));
-        let remote = NewJob { location: "Remote - India".into(), ..job };
+        let remote = NewJob { location: "Remote - India".into(), ..job.clone() };
         assert!(passes_filters(&remote, &roles, &["Pune".into()], true));
         assert!(!passes_filters(&remote, &roles, &["Pune".into()], false));
+        let dubai = NewJob { location: "Dubai, UAE".into(), ..job };
+        assert!(passes_filters(&dubai, &roles, &["UAE".into()], true));
+        assert!(passes_filters(&dubai, &roles, &["Abu Dhabi".into()], true));
     }
 }

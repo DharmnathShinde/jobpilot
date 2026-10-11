@@ -14,7 +14,8 @@ use crate::state::AppState;
 use crate::tailor;
 
 const JOB_COLS: &str = "id, source, external_id, title, company, location, url, description, posted_at, required_skills,
-    min_years, max_years, score, matched_skills, missing_skills, explanation, queue_status, created_at";
+    min_years, max_years, score, matched_skills, missing_skills, explanation, queue_status, created_at,
+    hr_email, hr_email_source, outreach_status";
 
 #[derive(Deserialize)]
 pub struct ManualJob {
@@ -87,10 +88,116 @@ pub async fn list(State(st): State<AppState>, AuthUser(uid): AuthUser, Query(q):
     .bind(uid)
     .bind(status)
     .bind(q.min_score.unwrap_or(0))
-    .bind(q.limit.unwrap_or(50).clamp(1, 200))
+    .bind(q.limit.unwrap_or(200).clamp(1, 1000))
     .fetch_all(&st.pool)
     .await?;
     Ok(Json(rows))
+}
+
+#[derive(Deserialize)]
+pub struct HrEmailReq {
+    pub email: Option<String>,
+}
+
+/// Set or clear the HR/recruiter email (manual override).
+pub async fn set_hr_email(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(r): Json<HrEmailReq>,
+) -> AppResult<Json<Job>> {
+    let email = r.email.map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty());
+    if let Some(ref e) = email {
+        if !e.contains('@') || e.len() < 5 {
+            return Err(AppError::BadRequest("enter a valid email".into()));
+        }
+    }
+    let source = email.as_ref().map(|_| "manual".to_string());
+    let n = sqlx::query("UPDATE jobs SET hr_email = $3, hr_email_source = $4 WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(uid)
+        .bind(&email)
+        .bind(&source)
+        .execute(&st.pool)
+        .await?
+        .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(load_job(&st, uid, id).await?))
+}
+
+#[derive(Serialize)]
+pub struct OutreachDraft {
+    pub to: String,
+    pub subject: String,
+    pub body: String,
+}
+
+/// Short outreach email draft; user sends from their own mail app.
+pub async fn outreach_draft(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<OutreachDraft>> {
+    let job = load_job(&st, uid, id).await?;
+    let to = job.hr_email.clone().filter(|e| !e.is_empty()).ok_or_else(|| AppError::BadRequest("add an HR email first".into()))?;
+    let profile = discovery::load_profile(&st.pool, uid).await?;
+    let name = if profile.full_name.is_empty() { "there".into() } else { profile.full_name.clone() };
+    let company = if job.company.is_empty() { "your team".to_string() } else { job.company.clone() };
+    let headline = if profile.headline.is_empty() {
+        String::new()
+    } else {
+        format!(" I'm a {}.", profile.headline.to_lowercase())
+    };
+    let skills = if job.matched_skills.is_empty() {
+        String::new()
+    } else {
+        let s = job.matched_skills.iter().take(4).cloned().collect::<Vec<_>>().join(", ");
+        format!(" My background includes {s}.")
+    };
+    let subject = format!("Application: {} at {}", job.title, company);
+    let body = format!(
+        "Hi,\n\nI saw the {title} role at {company} and would like to apply.{headline}{skills}\n\nI'd welcome the chance to discuss how I can contribute. My resume is attached / available on request.\n\nBest regards,\n{name}",
+        title = job.title,
+        company = company,
+        headline = headline,
+        skills = skills,
+        name = name,
+    );
+    sqlx::query("UPDATE jobs SET outreach_status = 'drafted' WHERE id = $1 AND user_id = $2 AND outreach_status = 'none'")
+        .bind(id)
+        .bind(uid)
+        .execute(&st.pool)
+        .await?;
+    Ok(Json(OutreachDraft { to, subject, body }))
+}
+
+#[derive(Deserialize)]
+pub struct OutreachStatusReq {
+    pub status: String,
+}
+
+pub async fn set_outreach_status(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(r): Json<OutreachStatusReq>,
+) -> AppResult<Json<Job>> {
+    if !["none", "drafted", "sent"].contains(&r.status.as_str()) {
+        return Err(AppError::BadRequest("status must be none, drafted or sent".into()));
+    }
+    let n = sqlx::query("UPDATE jobs SET outreach_status = $3 WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(uid)
+        .bind(&r.status)
+        .execute(&st.pool)
+        .await?
+        .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(load_job(&st, uid, id).await?))
 }
 
 pub async fn get(State(st): State<AppState>, AuthUser(uid): AuthUser, Path(id): Path<Uuid>) -> AppResult<Json<Job>> {

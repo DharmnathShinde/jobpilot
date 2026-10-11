@@ -10,6 +10,8 @@ const sourceLabel: Record<string, string> = {
   greenhouse: 'Career page',
   lever: 'Career page',
   ashby: 'Career page',
+  adzuna: 'Adzuna',
+  jsearch: 'Job search',
 };
 
 export function timeAgo(iso: string | null): string {
@@ -42,6 +44,8 @@ export function JobCard({ job, onPress }: { job: Job; onPress: () => void }) {
       </View>
       <View style={[styles.row, { gap: 6, marginTop: 10, flexWrap: 'wrap' }]}>
         <Chip label={sourceLabel[job.source] ?? job.source} />
+        {job.hr_email ? <Chip tone="good" label="HR email" /> : null}
+        {(job.outreach_status ?? 'none') === 'sent' ? <Chip label="Emailed" /> : (job.outreach_status ?? 'none') === 'drafted' ? <Chip label="Draft ready" /> : null}
         {job.missing_skills.length > 0 && <Chip tone="warn" label={`${job.missing_skills.length} gap${job.missing_skills.length > 1 ? 's' : ''}`} />}
         <Chip label={timeAgo(job.posted_at ?? job.created_at)} />
       </View>

@@ -16,6 +16,13 @@ pub struct Config {
     pub cron_secret: Option<String>,
     /// Set to false once your own account exists so nobody else can sign up.
     pub allow_signups: bool,
+    /// Optional Adzuna free API credentials.
+    pub adzuna_app_id: Option<String>,
+    pub adzuna_app_key: Option<String>,
+    /// Adzuna country path segment (ae, gb, in, us, …).
+    pub adzuna_country: String,
+    /// Optional RapidAPI key for JSearch.
+    pub jsearch_api_key: Option<String>,
 }
 
 impl Config {
@@ -35,6 +42,10 @@ impl Config {
             catalog_refresh: std::env::var("CATALOG_REFRESH").map(|v| v != "false").unwrap_or(true),
             cron_secret: std::env::var("CRON_SECRET").ok().filter(|s| s.len() >= 16),
             allow_signups: std::env::var("ALLOW_SIGNUPS").map(|v| v != "false").unwrap_or(true),
+            adzuna_app_id: std::env::var("ADZUNA_APP_ID").ok().filter(|k| !k.is_empty()),
+            adzuna_app_key: std::env::var("ADZUNA_APP_KEY").ok().filter(|k| !k.is_empty()),
+            adzuna_country: std::env::var("ADZUNA_COUNTRY").unwrap_or_else(|_| "ae".into()),
+            jsearch_api_key: std::env::var("JSEARCH_API_KEY").ok().filter(|k| !k.is_empty()),
         })
     }
 }

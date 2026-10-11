@@ -83,10 +83,10 @@ export default function Apply() {
             {resume && (
               <Pressable onPress={() => shareResumePdf(resume, data.job.company).catch((e) => setErr(e.message))}>
                 <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', marginBottom: space(5) }}>
-                  <Feather name="file-text" size={20} color={colors.critical} />
+                  <Feather name="download" size={20} color={colors.successDark} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: '600', color: colors.text }}>Tailored resume (PDF)</Text>
-                    <Text style={{ fontSize: 12, color: colors.successDark }}>Tap to save or attach</Text>
+                    <Text style={{ fontWeight: '600', color: colors.text }}>Download tailored resume (PDF)</Text>
+                    <Text style={{ fontSize: 12, color: colors.successDark }}>Tap to save or share</Text>
                   </View>
                   <Feather name="share" size={18} color={colors.successDark} />
                 </Card>

@@ -24,6 +24,10 @@ async fn app() -> Option<Router> {
         catalog_refresh: false,
         cron_secret: Some("test-cron-secret-123456".into()),
         allow_signups: true,
+        adzuna_app_id: None,
+        adzuna_app_key: None,
+        adzuna_country: "ae".into(),
+        jsearch_api_key: None,
     };
     let pool = jobpilot::connect(&url).await.expect("db");
     Some(jobpilot::routes::router(AppState::new(pool, config).unwrap()))
